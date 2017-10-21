@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Threading;
 using MathNet.Numerics;
 using MathNet.Numerics.LinearAlgebra;
 
@@ -7,8 +9,18 @@ namespace lab2
     class ExpressionNo8 {
 
         static void Main(string[] args) {
-            Console.WriteLine(Matrix<double>.Build.Dense(4, 4, 1) * Vector<double>.Build.Dense(4, 1));
             ExpressionNo8 expr = new ExpressionNo8();
+            int k1, k2;
+            Stopwatch sw = new Stopwatch();
+            while(true) {
+                k1 = CLI.GetInt("Enter K1: ", 1);
+                k2 = CLI.GetInt("Enter k2: ", 1);
+                Console.WriteLine("Calculating results...");
+                sw.Start();
+                double result = expr.Calculate(k1, k2);
+                sw.Stop();
+                Console.WriteLine("Done!\nResult: {0}\nTook: {1} ms", result, sw.ElapsedMilliseconds);
+            }
         }
 
         bool debug;
@@ -24,10 +36,17 @@ namespace lab2
         Vector<double> _b = null;
         public Vector<double> b {
             get { 
-                lock(bl) { if (_b == null) _b = Vector<double>.Build.Dense(n, i => 8.0 / (1+i)); }
+                lock(bl) { 
+                    if (_b == null) {
+                        _b = Vector<double>.Build.Dense(n, i => 8.0 / (1+i));
+
+                        if (debug) Console.WriteLine("Generated b: {0}", _b);
+                    }
+                }
+                
                 return _b;
             }
-            set { this._b = value; }
+            set { this._b = value;}
         }
 
         Vector<double> b1;
@@ -37,19 +56,30 @@ namespace lab2
         Vector<double> _y1 = null;
         Vector<double> y1 {
             get {
-                Console.WriteLine("y1 get");
-                lock(y1l) { if (_y1 == null) _y1 = A * b; }
-                Console.WriteLine("y1 after check ... {0}", _y1);
+                lock(y1l) {
+                    if (_y1 == null) {
+                        _y1 = A * b;
+
+                        if (debug) Console.WriteLine("Generated y1: {0}", _y1);
+                    }
+                }
                 return _y1;
             }
-            set { _y1 = value; }
+            set { _y1 = value;  }
         }
 
         private Object y2l = new Object();
         Vector<double> _y2 = null;
         Vector<double> y2 {
             get {
-                lock(y2l) { if (_y2 == null) _y2 = A1 * (b1 + c1); }
+                lock(y2l) {
+                    if (_y2 == null) {
+                        _y2 = A1 * (b1 + c1);
+
+                        if (debug) Console.WriteLine("Generated y2: {0}", _y2); 
+                    }
+                }
+                
                 return _y2;
             }
             set { _y2 = value; }
@@ -58,7 +88,6 @@ namespace lab2
         Matrix<double> A;
         Matrix<double> A1;
         Matrix<double> A2;
-        Matrix<double> B1;
         Matrix<double> B2;
 
 
@@ -66,8 +95,13 @@ namespace lab2
         Matrix<double> _C2 = null;
         Matrix<double> C2 {
             get {
-                
-                lock(C2l) { if (_C2 == null) _C2 = Matrix<double>.Build.Dense(n, n, (i,j)=>1/((i+1)+(j+1)+2)); }
+                lock(C2l) {
+                    if (_C2 == null) {
+                        _C2 = Matrix<double>.Build.Dense(n, n, (i,j)=> 1.0 / ((i+1)+(j+1)+2));
+
+                        if (debug) Console.WriteLine("Generated C2: {0}", _C2);
+                    }
+                }
                 return _C2;
             }
             set { _C2 = value; }
@@ -77,7 +111,15 @@ namespace lab2
         Matrix<double> _Y3 = null;
         Matrix<double> Y3 {
             get {
-                lock(Y3l) { if (_Y3 == null) _Y3 = A2 * (B2 + C2); }
+                lock(Y3l) {
+                    if (_Y3 == null) {
+                        _Y3 = A2 * (B2 - C2);
+
+                        if (debug) Console.WriteLine("Generated Y3: {0}", _Y3);
+                    }
+                    
+                }
+                
                 return _Y3;
             }
             set { _Y3 = value; }
@@ -171,11 +213,51 @@ namespace lab2
 
             this.A2 = A2;
             this.B2 = B2;
-            Console.WriteLine("Result: {0}", (y1 * Y3 * y1 * y2 * y2)*(y2 * Y3 * y2 * y1 + y1));
+            
+        }
+
+        public int K1;
+        public int K2;
+
+        private double firstPart = 0;
+        private void calculateFirstPart() {
+            firstPart = K1 * y1 * Y3 * y1 * y2 * y2;
+        }
+
+        private Matrix<double> secondPart = null;
+        private void calculateSecondPart() {
+            secondPart = K2 * Y3 * Y3 + y1 * y2;
+        }
+
+        private Vector<double> thirdPart = null;
+        private void calculateThirdPart() {
+            thirdPart = y2 * Y3 * y2 * y1 + y1;
+        }
+        public double Calculate(int K1, int K2) {
+            reset();
+            this.K1 = K1;
+            this.K2 = K2;
+
+            Thread firstPartThread = new Thread(calculateFirstPart);
+            Thread secondPartThread = new Thread(calculateSecondPart);
+            Thread thirdPartThread = new Thread(calculateThirdPart);
+            firstPartThread.Start();
+            secondPartThread.Start();
+            thirdPartThread.Start();
+
+            firstPartThread.Join();
+            secondPartThread.Join();
+            thirdPartThread.Join();
+            
+            return ((firstPart + secondPart) * K1 * (thirdPart))[0];
         }
 
         private void reset() {
-
+            b = null;
+            y1 = null;
+            y2 = null;
+            Y3 = null;
+            C2 = null;
         }
         
     }
@@ -188,7 +270,7 @@ namespace lab2
         }
 
         static string[] BOOL_YES = {"yes", "y", "true", "da", "sure"};
-        static string[] BOOL_NO = {"yes", "y", "true", "da", "sure"};
+        static string[] BOOL_NO = {"no", "n", "false", "net", "not sure"};
 
         public static bool GetBool(string prompt, bool d) {
             showPrompt(prompt, d.ToString());
@@ -196,7 +278,7 @@ namespace lab2
             if (Array.Exists(BOOL_YES, e => s.Equals(e))) {
                 return true;
             }
-            else if (Array.Exists(BOOL_YES, e => s.Equals(e))) {
+            else if (Array.Exists(BOOL_NO, e => s.Equals(e))) {
                 return false;
             }
             return d;

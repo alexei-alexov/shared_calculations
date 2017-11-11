@@ -1,6 +1,6 @@
-﻿
-using System;
-
+﻿using System;
+using System.Diagnostics;
+using System.Linq;
 
 namespace lab3
 {
@@ -19,11 +19,38 @@ namespace lab3
             bMatrix.Fill((i, j) => (i + j < N && i <= j)? CLI.GetDouble(String.Format("Enter [{0},{1}] element", i, j), 1) : 0);
             Console.WriteLine("Here is B matrix:\n{0}", bMatrix);
 
-            Console.WriteLine("Recursive result:\n{0}", aMatrix.RecursiveMultiplication(bMatrix));
-            Console.WriteLine("Amount of calculations took: {0}", aMatrix.Calculations);
 
-            Console.WriteLine("Simple multiplication result:\n{0}", aMatrix.SingleAssignmentMultiplication(bMatrix));
-            Console.WriteLine("Amount of calculations took: {0}", aMatrix.Calculations);
+            // RECURSION PART ...
+
+            Stopwatch recursionStopwatcher = new Stopwatch();
+            recursionStopwatcher.Start();
+            SquareMatrix recursiveResult = aMatrix.RecursiveMultiplication(bMatrix);
+            recursionStopwatcher.Stop();
+            
+            int recursiveCalculations = aMatrix.Calculations;
+            long recursionMilliseconds = recursionStopwatcher.ElapsedMilliseconds;
+            long recursionTicks = recursionStopwatcher.ElapsedTicks;
+
+            // SINGLE ASSIGNMENT PART ...
+
+            Stopwatch saStopwatcher = new Stopwatch();
+            saStopwatcher.Start();
+            SquareMatrix saResult = aMatrix.SingleAssignmentMultiplication(bMatrix);
+            saStopwatcher.Stop();
+            
+            int saCalculations = aMatrix.Calculations;
+            long saMilliseconds = saStopwatcher.ElapsedMilliseconds;
+            long saTicks = saStopwatcher.ElapsedTicks;
+
+            Console.WriteLine("Recursive result:\n{0}", recursiveResult);
+            Console.WriteLine("Amount of calculations took: {0}", recursiveCalculations);
+            Console.WriteLine("Time took to calculate: {0}ms", recursionMilliseconds);
+            Console.WriteLine("Ticks took to calculate: {0}", recursionTicks);
+
+            Console.WriteLine("Simple multiplication result:\n{0}", saResult);
+            Console.WriteLine("Amount of calculations took: {0}", saCalculations);
+            Console.WriteLine("Time took to calculate: {0}ms", saMilliseconds);
+            Console.WriteLine("Ticks took to calculate: {0}", saTicks);
 
         }
 
@@ -90,13 +117,24 @@ namespace lab3
 
             return result;
         }
+
+        public double GetMaxElement() {
+            Func<int, int, double> maxer = null;
+            maxer = (i, j) => {
+                return Math.Max(Math.Max(body[i,j], (i < size-1) ? (maxer(i+1, j)) : (body[i,j])),
+                                (j < size-1) ? (maxer(i, j+1)) : (body[i,j]));
+            };
+            return maxer(0, 0);
+        }
         
         private void refreshRepr() {
             string[] rows = new string[size];
             string[] tempRow = new string[size];
+            double maxElement = GetMaxElement();
+            string formatting = String.Format("{{0,{0}}}", Math.Floor(maxElement).ToString().Length);
             for(int i = 0; i < size; i++) {
                 for(int j = 0; j < size; j++) {
-                    tempRow[j] = String.Format("{0:##0.##}", body[i, j]);
+                    tempRow[j] = String.Format(formatting, body[i, j]);
                 }
                 rows[i] = String.Join(" ", tempRow);
             }
